@@ -134,6 +134,28 @@ class XbmcServer(Base):
         return '<XbmcServer %r>' % (self.label)
 
 
+class Script(Base):
+    __tablename__ = 'scripts'
+    id = Column(Integer, primary_key=True)
+    label = Column(String(500))
+    script = Column(String(500))
+    parameters = Column(String(500))
+    updates = Column(Integer)
+    status = Column(String(500))
+    data = Column(PickleType)
+
+    def __init__(self, label, script, parameters=None, updates=0, status=None, data=None):
+        self.label = label
+        self.script = script
+        self.parameters = parameters
+        self.updates = updates
+        self.status = status
+        self.data = data
+
+    def __repr__(self):
+        return '<Script %r>' % (self.label)
+
+
 class RecentlyAdded(Base):
     __tablename__ = 'recently_added'
     id = Column(Integer, primary_key=True)
