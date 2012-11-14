@@ -169,15 +169,15 @@ def album_library(artistid):
         version = xbmc.Application.GetProperties(properties=['version'])['version']['major']
         params = {'sort': {'ignorearticle': True}, 'properties': ['year']}
 
-        if version < 12: #Eden
-            params['artistid'] =  artistid
+        if version < 12:  # Eden
+            params['artistid'] = artistid
             params['properties'].extend(['artistid', 'artist'])
-        else: #Frodo
-            params['filter'] = {'artistid':artistid}
+        else:  # Frodo
+            params['filter'] = {'artistid': artistid}
 
         albums = xbmc.AudioLibrary.GetAlbums(**params)['albums']
 
-        if version > 11: #Frodo
+        if version > 11:  # Frodo
             artist = xbmc.AudioLibrary.GetArtistDetails(artistid=artistid)['artistdetails']['label']
             for album in albums:
                 album['artistid'] = artistid
@@ -199,11 +199,11 @@ def song_library(artistid, albumid):
         version = xbmc.Application.GetProperties(properties=['version'])['version']['major']
         params = {'sort': {'ignorearticle': True}, 'properties': ['album', 'track', 'title']}
 
-        if version < 12: #Eden
+        if version < 12:  # Eden
             params['artistid'] = artistid
             params['albumid'] = albumid
 
-        else: #Frodo
+        else:  # Frodo
             params['filter'] = {
                 'albumid': albumid
             }
@@ -212,7 +212,7 @@ def song_library(artistid, albumid):
 
     except:
         logger.log('Mobile :: XBMC :: Could not retrieve songs from audio library', 'WARNING')
-        aongs = []
+        songs = []
 
     return render_template('mobile/xbmc/songs.html',
         songs=songs,
@@ -251,6 +251,7 @@ def tvshow_info(id):
         banners=get_setting_value('library_use_bannerart') == '1'
     )
 
+
 @app.route('/mobile/episode/<int:id>/info/')
 @requires_auth
 def episode_info(id):
@@ -265,6 +266,7 @@ def episode_info(id):
     return render_template('mobile/xbmc/episode-details.html',
         episode=episode
     )
+
 
 @app.route('/mobile/artist/<int:id>/info/')
 @requires_auth
@@ -738,37 +740,253 @@ def sabnzbd_history_item(id):
         )
 
 
-from modules.search import cat_newznab, cat_nzbmatrix, nzb_matrix, nzb_su
+from modules.search import cat_newznab, cat_nzbmatrix, nzb_matrix, newznab, get_newznab_sites
+from maraschino.models import NewznabSite
 
 
 @app.route('/mobile/search/')
 @app.route('/mobile/search/<site>/')
-def search(site="nzbmatrix"):
-    if site == 'nzb.su':
-        categories = cat_newznab
-    else:
+def search(site='nzbmatrix'):
+    if site == 'nzbmatrix':
         categories = cat_nzbmatrix
+    else:
+        site = int(site)
+        newznab = NewznabSite.query.filter(NewznabSite.id == site).first()
+        categories = cat_newznab(newznab.url)
 
     return render_template('mobile/search.html',
+        query=None,
+        site=site,
         categories=categories,
+        newznab_sites=get_newznab_sites(),
+        category=0
     )
 
 
-@app.route('/mobile/search/nzbmatrix/<query>/')
-@app.route('/mobile/search/nzbmatrix/<query>/<cat>/')
-def mobile_nzbmatrix(query, cat=None):
+@app.route('/mobile/search/<site>/<category>/<maxage>/')
+@app.route('/mobile/search/<site>/<category>/<maxage>/<term>/')
+@requires_auth
+def mobile_search_results(site, category='0', maxage='0', term=''):
+    if site == 'nzbmatrix':
+        categories = cat_nzbmatrix
+        results = nzb_matrix(category=category, maxage=maxage, term=term, mobile=True)
+    else:
+        site = int(site)
+        url = NewznabSite.query.filter(NewznabSite.id == site).first().url
+        categories = cat_newznab(url)
+        results = newznab(site=site, category=category, maxage=maxage, term=term, mobile=True)
 
     return render_template('mobile/search.html',
-        categories=cat_nzbmatrix,
-        results=nzb_matrix(item=query, cat=cat, mobile=True)
+        query=term,
+        site=site,
+        categories=categories,
+        newznab_sites=get_newznab_sites(),
+        category=category,
+        results=results
     )
 
 
-@app.route('/mobile/search/nzb.su/<query>/')
-@app.route('/mobile/search/nzb.su/<query>/<cat>/')
-def mobile_nzbsu(query, cat=None):
+from modules.traktplus import *
 
-    return render_template('mobile/search.html',
-        categories=cat_newznab,
-        results=nzb_su(item=query, cat=cat, mobile=True)
+
+@app.route('/mobile/trakt/')
+@requires_auth
+def mobile_trakt():
+    return render_template('mobile/trakt/trakt.html')
+
+
+@app.route('/mobile/trakt/trending/')
+@app.route('/mobile/trakt/trending/<media>/')
+@requires_auth
+def mobile_trakt_trending(media=None):
+    if not media:
+        media = get_setting_value('trakt_default_media')
+
+    trending = xhr_trakt_trending(type=media, mobile=True)
+
+    return render_template('mobile/trakt/trending.html',
+        trending=trending,
+        media=media
+    )
+
+
+@app.route('/mobile/trakt/summary/<media>/<id>/')
+@app.route('/mobile/trakt/summary/<media>/<id>/<season>/<episode>/')
+@requires_auth
+def mobile_trakt_summary(media, id, season=None, episode=None):
+
+    summary = xhr_trakt_summary(type=media, id=id, season=season, episode=episode, mobile=True)
+
+    if 'genres' in summary:
+        summary['genres'] = " / ".join(summary['genres'])
+
+    if media == 'show':
+        url = 'http://api.trakt.tv/show/shouts.json/%s/%s' % (trakt_apikey(), id)
+    elif media == 'episode':
+        url = 'http://api.trakt.tv/show/episode/shouts.json/%s/%s/%s/%s' % (trakt_apikey(), id, season, episode)
+    else:
+        url = 'http://api.trakt.tv/movie/shouts.json/%s/%s' % (trakt_apikey(), id)
+
+    try:
+        shouts = trak_api(url)
+    except:
+        logger.log('TRAKT :: Failed to retrieve shouts for %s: %s' % (media, id), 'ERROR')
+        shouts = []
+
+    return render_template('mobile/trakt/summary.html',
+        summary=summary,
+        shouts=shouts,
+        media=media
+    )
+
+
+@app.route('/mobile/trakt/recommendations/')
+@app.route('/mobile/trakt/recommendations/<media>/')
+@requires_auth
+def mobile_trakt_recommendations(media=None):
+    if not media:
+        media = get_setting_value('trakt_default_media')
+
+    recommendations = xhr_trakt_recommendations(type=media, mobile=True)
+
+    return render_template('mobile/trakt/recommendations.html',
+        recommendations=recommendations,
+        media=media
+    )
+
+
+@app.route('/mobile/trakt/activity/')
+@app.route('/mobile/trakt/activity/<type>/')
+@requires_auth
+def mobile_trakt_activity(type='friends'):
+    activity = xhr_trakt_activity(type=type, mobile=True)
+
+    return render_template('mobile/trakt/activity.html',
+        activity=activity,
+        type=type
+    )
+
+
+@app.route('/mobile/trakt/profile/')
+@app.route('/mobile/trakt/profile/<user>/')
+@requires_auth
+def mobile_trakt_profile(user=None):
+    profile = xhr_trakt_profile(user=user, mobile=True)
+
+    return render_template('mobile/trakt/profile.html',
+        profile=profile,
+    )
+
+
+@app.route('/mobile/trakt/calendar/<type>/')
+@requires_auth
+def mobile_trakt_calendar(type):
+    calendar = xhr_trakt_calendar(type=type, mobile=True)
+
+    return render_template('mobile/trakt/calendar.html',
+        calendar=calendar,
+        type=type
+    )
+
+
+@app.route('/mobile/trakt/friends/')
+@app.route('/mobile/trakt/friends/<user>/')
+@requires_auth
+def mobile_trakt_friends(user=None):
+    friends = xhr_trakt_friends(user=user, mobile=True)
+
+    return render_template('mobile/trakt/friends.html',
+        friends=friends,
+        user=user
+    )
+
+
+@app.route('/mobile/trakt/library/<user>/')
+@app.route('/mobile/trakt/library/<user>/<media>/')
+@requires_auth
+def mobile_trakt_library(user, media=None):
+    if not media:
+        media = get_setting_value('trakt_default_media')
+
+    library = xhr_trakt_library(user=user, type=media, mobile=True)
+
+    return render_template('mobile/trakt/user_media.html',
+        trakt=library,
+        user=user,
+        media=media,
+        view='library',
+    )
+
+
+@app.route('/mobile/trakt/watchlist/<user>/')
+@app.route('/mobile/trakt/watchlist/<user>/<media>/')
+@requires_auth
+def mobile_trakt_watchlist(user, media=None):
+    if not media:
+        media = get_setting_value('trakt_default_media')
+
+    watchlist = xhr_trakt_watchlist(user=user, type=media, mobile=True)
+
+    return render_template('mobile/trakt/user_media.html',
+        trakt=watchlist,
+        user=user,
+        media=media,
+        view='watchlist',
+    )
+
+
+@app.route('/mobile/trakt/rated/<user>/<media>/')
+@app.route('/mobile/trakt/rated/<user>/')
+@requires_auth
+def mobile_trakt_rated(user, media=None):
+    if not media:
+        media = get_setting_value('trakt_default_media')
+
+    watchlist = xhr_trakt_rated(user=user, type=media, mobile=True)
+
+    return render_template('mobile/trakt/user_media.html',
+        trakt=watchlist,
+        user=user,
+        media=media,
+        view='rated',
+    )
+
+
+@app.route('/mobile/trakt/get_lists/<user>/')
+@requires_auth
+def mobile_trakt_lists(user):
+    lists = xhr_trakt_get_lists(user=user, mobile=True)
+
+    return render_template('mobile/trakt/lists.html',
+        lists=lists,
+        user=user,
+        title='Lists'
+    )
+
+
+@app.route('/mobile/trakt/list/<slug>/<user>/')
+@requires_auth
+def mobile_trakt_custom_list(slug, user):
+    custom_list = xhr_trakt_custom_list(slug=slug, user=user, mobile=True)
+
+    return render_template('mobile/trakt/lists.html',
+        custom_list=custom_list,
+        user=user,
+        title=custom_list['name']
+    )
+
+
+@app.route('/xhr/trakt/progress/<user>/')
+@app.route('/xhr/trakt/progress/<user>/<type>/')
+@requires_auth
+def mobile_trakt_progress(user, type=None):
+    if not type:
+        type = 'watched'
+
+    progress = xhr_trakt_progress(user=user, type=type, mobile=True)
+
+    return render_template('mobile/trakt/progress.html',
+        progress=progress,
+        user=user,
+        type=type
     )
