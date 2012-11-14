@@ -672,37 +672,37 @@ $(document).ready(function() {
 
   // play recently added episodes when clicking on them
 
-  $(document).on('click', '#recently_added #play_episode', function() {
+  $(document).on('click', '#recently_added .play_episode', function() {
     $.get(WEBROOT + '/xhr/play/video/episode/' + $(this).data('episodeid'));
   });
 
   // show info for recently added episode in library
 
-  $(document).on('click', '#recently_added #info_episode', function() {
+  $(document).on('click', '#recently_added .info_episode', function() {
     invoke_library(WEBROOT + '/xhr/library/episode/info/' + $(this).data('episodeid'));
   });
 
   // play recently added movies when clicking on them
 
-  $(document).on('click', '#recently_added_movies #play_movie', function() {
+  $(document).on('click', '#recently_added_movies .play_movie', function() {
     $.get(WEBROOT + '/xhr/play/video/movie/' + $(this).data('movieid'));
   });
 
   // show info for recently added movie in library
 
-  $(document).on('click', '#recently_added_movies #info_movie', function() {
+  $(document).on('click', '#recently_added_movies .info_movie', function() {
     invoke_library(WEBROOT + '/xhr/library/movie/info/' + $(this).data('movieid'));
   });
 
   // play recently added albums when clicking on them
 
-  $(document).on('click', '#recently_added_albums #play_album', function() {
+  $(document).on('click', '#recently_added_albums .play_album', function() {
     $.get(WEBROOT + '/xhr/play/audio/album/' + $(this).data('albumid'));
   });
 
   // show info for recently added album in library
 
-  $(document).on('click', '#recently_added_albums #info_album', function() {
+  $(document).on('click', '#recently_added_albums .info_album', function() {
     invoke_library(WEBROOT + '/xhr/library/album/info/' + $(this).data('albumid'));
   });
 
@@ -1749,16 +1749,23 @@ $(document).ready(function() {
       var query = $('#search form #value').val();
       var site = $('#search form #site').val();
       var cat = $('#search form #category').val();
+      var maxage = $('#search form #maxage').val();
+
       if(site === ''){
         popup_message('You must pick a website');
         return false;
       }
-      if(query === ''){
-        popup_message('Must search something!');
-        return false;
+      if(!maxage) {
+        maxage = '0';
       }
+
+      var url = '/search/'+site+'/'+cat+'/'+maxage+'/';
+      if(query != ''){
+        url = url + query;
+      }
+
       $('#search .searching').show();
-      $.get(WEBROOT + '/search/'+site+'/'+query+'/'+cat, function(data){
+      $.get(WEBROOT + url, function(data){
         $('#search .searching').hide();
         if(data['error']){
           popup_message(data['error']);
@@ -1766,6 +1773,7 @@ $(document).ready(function() {
         } else {
           $('#search').replaceWith(data);
           byteSizeOrdering();
+          $('#search form #value').val(query);
           $('#search #results .tablesorter').tablesorter({headers: { 2: { sorter: 'filesize'}}});
         }
       });
@@ -1775,6 +1783,9 @@ $(document).ready(function() {
   $(document).on('change', '#search form #site', function(){
     var value = $(this).val();
     var query = $('#search form #value').val();
+    $('#search form #category').remove();
+    $('#search .searching').show();
+
     $.get(WEBROOT + '/xhr/search/'+value)
     .success( function(data){
       $('#search').replaceWith(data);
@@ -1796,6 +1807,48 @@ $(document).ready(function() {
 
   $(document).on('click', '#search #close', function() {
     $(search).slideUp(300);
+  });
+
+  $(document).on('click', '#add_newznab', function() {
+    var url = WEBROOT + '/search/newznab_dialog';
+    if ($(this).hasClass('edit')){
+      url = url + '/' + $(this).data('id');
+    }
+
+    $('#search_settings_dialog .save').click();
+    $.get(url, function(data) {
+      var popup = $(data);
+      $('body').append(popup);
+      popup.showPopup({ dispose: true });
+    });
+  });
+
+  $(document).on('click', '#add_edit_newznab_dialog .choices .save', function() {
+    var form = $('#add_edit_newznab_dialog form');
+
+    if (!validate_form(form)) {
+      return false;
+    }
+
+    var settings = form.serialize();
+    $.post(WEBROOT + '/search/add_edit_newznab/', settings, function(data) {
+      if (!data.error) {
+        $('#add_edit_newznab_dialog .close').click();
+        $('#search_settings').click();
+        $('#search').replaceWith(data);
+      }
+    });
+  });
+
+  $(document).on('click', '#add_edit_newznab_dialog .choices .delete', function() {
+    var newznab_id = $('#add_edit_newznab_dialog input[name=newznab_id]').val();
+    $.get(WEBROOT + '/search/delete_newznab/' + newznab_id, function(data) {
+      if (!data.status) {
+        $('#search').replaceWith(data);
+        $('#add_edit_newznab_dialog .close').click();
+        $('#search_settings').click();
+      }
+    });
   });
 
   /********* END SEARCH ***********/
