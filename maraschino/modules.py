@@ -164,8 +164,8 @@ AVAILABLE_MODULES = [
     },
     {
         'name': 'library',
-        'label': 'Media Library',
-        'description': 'Allows you to browse your media library and select items to play in XBMC.',
+        'label': 'XBMC Library',
+        'description': 'Allows you to browse your XBMC library and select items to play in XBMC.',
         'static': True,
         'poll': 0,
         'delay': 0,
@@ -177,21 +177,9 @@ AVAILABLE_MODULES = [
                 'type': 'bool',
             },
             {
-                'key': 'library_use_bannerart',
-                'value': '0',
-                'description': 'Use Bannerart for TV shows',
-                'type': 'bool',
-            },
-            {
-                'key': 'library_watched_movies',
+                'key': 'library_ignore_the',
                 'value': '1',
-                'description': 'Show Watched Movies',
-                'type': 'bool',
-            },
-            {
-                'key': 'library_watched_tv',
-                'value': '1',
-                'description': 'Show Watched TV/Episodes',
+                'description': 'Ignore "The" in titles',
                 'type': 'bool',
             },
             {
@@ -204,6 +192,12 @@ AVAILABLE_MODULES = [
                 'key': 'library_show_music',
                 'value': '1',
                 'description': 'Show music',
+                'type': 'bool',
+            },
+            {
+                'key': 'library_show_pvr',
+                'value': '0',
+                'description': 'Show PVR (XBMC 12+ only)',
                 'type': 'bool',
             },
             {
@@ -631,7 +625,7 @@ AVAILABLE_MODULES = [
                 'value': '0',
                 'description': 'Show air date',
                 'type': 'bool',
-            },         
+            },
         ]
     },
     {
@@ -749,17 +743,6 @@ SEARCH_SETTINGS = [
         'type': 'bool',
     },
     {
-        'key': 'nzb_matrix_API',
-        'value': '',
-        'description': 'NZBMatrix API',
-        'link': 'http://nzbmatrix.com/account.php?action=api',
-    },
-    {
-        'key': 'nzb_matrix_user',
-        'value': '',
-        'description': 'NZBMatrix Username',
-    },
-    {
         'key': 'search_retention',
         'value': '',
         'description': 'Usenet retention',
@@ -792,7 +775,7 @@ def add_module_dialog():
                 available_modules.remove(available_module)
                 break
 
-    return render_template('add_module_dialog.html',
+    return render_template('dialogs/add_module_dialog.html',
         available_modules = available_modules,
     )
 
@@ -915,7 +898,7 @@ def module_settings_dialog(name):
                 if 'xbmc_servers' in s:
                     s['options'] = module_get_xbmc_servers()
 
-        return render_template('module_settings_dialog.html',
+        return render_template('dialogs/module_settings_dialog.html',
             module = module,
         )
 
@@ -1022,7 +1005,7 @@ def extra_settings_dialog(dialog_type, updated=False):
          if setting:
              s['value'] = setting.value
 
-    return render_template('extra_settings_dialog.html',
+    return render_template('dialogs/extra_settings_dialog.html',
         dialog_title=dialog_title,
         dialog_text=dialog_text,
         dialog_type=dialog_type,
