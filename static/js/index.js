@@ -53,10 +53,6 @@ $(document).ready(function() {
     var popup = $('<div id="popup_message" class="dialog"><div class="close">x</div><p>' + message + '</p><div class="choices"><div class="cancel">OK</div></div></div>');
     $('body').append(popup);
     popup.showPopup({ dispose: true });
-    $(document).on('keydown', 'body', function() {
-      $('#popup_message .choices .cancel').click();
-      $(document).off('keydown', 'body');
-    });
   }
 
   // get/poll module
@@ -667,7 +663,9 @@ $(document).ready(function() {
 
     $.get(url, function(data) {
       $('#library').replaceWith(data);
+      var x = window.scrollX, y = window.scrollY;
       $('#library #filter input').focus();
+      window.scrollTo(x, y);
     });
   });
 
@@ -1688,7 +1686,7 @@ $(document).ready(function() {
 
   $(document).on('click', '#search #results table tbody tr td:first-child img', function(){
     var link = $(this).attr('nzb-link');
-    $.post(WEBROOT + '/sabnzbd/add/',{url: encodeURI(link)}, function(data){
+    $.post(WEBROOT + '/sabnzbd/add/',{url: link}, function(data){
       data = eval('(' + data + ')');
       if(data['status']){
         popup_message('Successfully added to SabNZBd');
@@ -3018,4 +3016,13 @@ $(document).ready(function() {
     });
   }
 
-});
+  // Prevent body scrolling
+  $(document).on('mousewheel', 'div[class*=noscroll]', function (e, d) {
+    var height = $(this).height(),
+        scrollHeight = this.scrollHeight,
+        scrollTop = this.scrollTop;
+
+    if((scrollTop === (scrollHeight - height) && d < 0) || (scrollTop === 0 && d > 0)) {
+      e.preventDefault();
+    }
+  });});
